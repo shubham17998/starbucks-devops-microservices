@@ -1,3 +1,15 @@
-output "public_ip" {
-    value =  "Your Ec2 IP is : ${aws_instance.Monitoring_server.public_ip}"
+output "cluster_name" {
+  value = module.eks.cluster_id
+}
+
+output "kubeconfig" {
+  value = module.eks.kubeconfig
+}
+
+output "ecr_user_repo" {
+  value = aws_ecr_repository.user.repository_url
+}
+
+output "ecr_order_repo" {
+  value = aws_ecr_repository.order.repository_url
 }

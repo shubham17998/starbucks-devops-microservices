@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION = "ap-south-1"
+        ECR_URL_USER  = "<AWS_ACCOUNT_ID>.dkr.ecr.${AWS_REGION}.amazonaws.com/user-service"
+        ECR_URL_ORDER = "<AWS_ACCOUNT_ID>.dkr.ecr.${AWS_REGION}.amazonaws.com/order-service"
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/yourusername/starbucks-kubernetes.git'
+            }
+        }
+
+        stage('Login to ECR') {
+            steps {
+                sh '''
+                aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_URL_USER}
+                aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_URL_ORDER}
+                '''
+            }
+        }
+
+        stage('Build Images') {
+            steps {
+                sh '''
+                docker build -t ${ECR_URL_USER}:${IMAGE_TAG} ./services/user-service
+                docker build -t ${ECR_URL_ORDER}:${IMAGE_TAG} ./services/order-service
+                '''
+            }
+        }
+
+        stage('Push Images to ECR') {
+            steps {
+                sh '''
+                docker push ${ECR_URL_USER}:${IMAGE_TAG}
+                docker push ${ECR_URL_ORDER}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                aws eks --region ${AWS_REGION} update-kubeconfig --name starbucks-eks
+
+                kubectl set image deployment/user-service user-service=${ECR_URL_USER}:${IMAGE_TAG}
+                kubectl set image deployment/order-service order-service=${ECR_URL_ORDER}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh '''
+                kubectl get pods
+                '''
+            }
+        }
+    }
+}
